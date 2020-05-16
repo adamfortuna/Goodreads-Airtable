@@ -1,5 +1,5 @@
 class Serie < Airrecord::Table
-  self.base_key = 'apppDHg8PasCSBhei'
+  self.base_key = 'app9kWZ1eEhSFtmDs'
   self.table_name = 'Series'
 
   # Create a Book record from a Goodreads API request

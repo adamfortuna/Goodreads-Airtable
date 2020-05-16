@@ -1,11 +1,12 @@
 require 'byebug'
 require_relative 'author'
 require_relative 'serie'
+require_relative 'shelf'
 require_relative 'category'
 require_relative 'goodreads_client'
 
 class Book < Airrecord::Table
-  self.base_key = 'apppDHg8PasCSBhei'
+  self.base_key = 'app9kWZ1eEhSFtmDs'
   self.table_name = 'Books'
 
   GOODREADS_BLACKLIST = %w(
@@ -52,7 +53,9 @@ class Book < Airrecord::Table
   ]
 
   # Create a Book record from a Goodreads API request
-  def create_from_goodreads(book, mark_read, personal_rating)
+  def create_from_goodreads(book, shelf_book)
+    personal_rating = shelf_book.rating.to_i
+
     self['ISBN']              = book.isbn13
     self['Title']             = book.title_without_series
     self['Cover']             = create_cover(book)
@@ -67,8 +70,12 @@ class Book < Airrecord::Table
     self['Pages']             = book.num_pages.to_i
     authors                   = [book.authors.author].flatten
     self['Authors']           = create_author(authors)
+    self['Shelves']           = create_shelves(shelf_book.shelves)
+
     self['Goodreads Ratings'] = book.ratings_count.to_i
-    self['Read']              = true if mark_read
+    self['Date Started']      = shelf_book.started_at ? shelf_book.started_at.to_datetime : nil
+    self['Date Read']         = shelf_book.read_at ? shelf_book.read_at.to_datetime : nil
+    self['Read']              = !self['Date Read'].nil?
     self.save
   end
 
@@ -139,8 +146,13 @@ class Book < Airrecord::Table
     def create_series(title)
       return [], nil if !title[/\((.*?)\)/]
       series_title_with_number = title[/\((.*?)\)/][1..-2]
-      series_title  = series_title_with_number.split('#')[0].tr('^a-zA-Z ', '').strip
-      series_number = series_title_with_number.split('#')[1].tr('^0-9.-', '')
+      if series_title_with_number.include?('#')
+        series_title  = series_title_with_number.split('#')[0].tr('^a-zA-Z ', '').strip
+        series_number = series_title_with_number.split('#')[1].tr('^0-9.-', '')
+      elsif match = series_title_with_number.match(/(0-9)+\.(0-9)$/)
+        series_number =  match[0]
+        series_title = series_title_with_number.gsub(series_number, '').strip
+      end
 
       existing_serie = Serie.all.find {|a| a['Title'] == series_title}
       if existing_serie
@@ -148,6 +160,9 @@ class Book < Airrecord::Table
       else
         return [Serie.create('Title' => series_title).id], series_number
       end
+    rescue Exception => e
+      byebug
+      raise e
     end
 
     # Create or find author
@@ -164,5 +179,23 @@ class Book < Airrecord::Table
               end
       end
       author_ids
+    end
+
+    # Create of find shelves
+    def create_shelves shelves
+      shelf_ids = []
+      existing_shelves = Shelf.all
+
+      if shelves.shelf.class.to_s == 'Array'
+        shelves.shelf.each do |shelf|
+          existing_shelf = existing_shelves.find {|a| a['Name'] == shelf.name}
+          shelf_ids << (existing_shelf ? existing_shelf.id : Shelf.create("Name" => shelf.name).id)
+        end
+      else
+        existing_shelf = existing_shelves.find {|a| a['Name'] == shelves.shelf.name}
+        shelf_ids << (existing_shelf ? existing_shelf.id : Shelf.create("Name" => shelves.shelf.name).id)
+      end
+
+      shelf_ids
     end
 end

@@ -1,5 +1,5 @@
 class Author < Airrecord::Table
-  self.base_key = 'apppDHg8PasCSBhei'
+  self.base_key = 'app9kWZ1eEhSFtmDs'
   self.table_name = 'Authors'
 
   def create_from_goodreads(author)
